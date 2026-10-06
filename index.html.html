@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Viewport configuration for full responsiveness on desktop and mobile -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Market Dashboard</title>
+
+    <!-- Tailwind CSS for clean layout and responsiveness -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js CDN for interactive stock charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Custom CSS styling for polished theme and smooth interactions -->
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        .chip {
+            transition: all 0.2s ease-in-out;
+        }
+        .chip:hover {
+            transform: translateY(-1px);
+        }
+        .card-shadow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-4 md:p-8">
+
+    <!-- Main App Container -->
+    <div class="max-w-7xl mx-auto w-full space-y-6">
+
+        <!-- Header Section -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-xl card-shadow border border-slate-200">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    📈 Stock Market Dashboard
+                </h1>
+                <p class="text-xs text-slate-500 mt-1">
+                    Your key stays in your browser. Get a free key at 
+                    <a href="https://www.alphavantage.co/support/#api-key" target="_blank" class="text-blue-600 underline font-medium">alphavantage.co/support/#api-key</a>
+                </p>
+            </div>
+            
+            <!-- Daily API Limit Tracker & Data Source Badge -->
+            <div class="flex flex-col items-end gap-1 w-full md:w-auto">
+                <div id="apiCounterBadge" class="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-blue-200">
+                    API calls used today: <span id="apiCallCount">0</span> of 25
+                </div>
+                <div id="dataSourceBadge" class="hidden text-xs px-2.5 py-1 rounded-md font-medium border"></div>
+            </div>
+        </header>
+
+        <!-- API Key & Controls Input Section -->
+        <section class="bg-white p-6 rounded-xl card-shadow border border-slate-200 space-y-4">
+            
+            <!-- API Key Row -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">ALPHA VANTAGE API KEY</label>
+                    <div class="relative">
+                        <input type="password" id="apiKeyInput" placeholder="Enter API Key or use 'demo' for IBM" class="w-full px-3 py-2 pr-20 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button type="button" id="toggleKeyVisibility" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-slate-700 px-2 py-1 font-medium">
+                            Show
+                        </button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 pb-2">
+                    <input type="checkbox" id="rememberKeyCheckbox" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-slate-300">
+                    <label for="rememberKeyCheckbox" class="text-xs text-slate-600 font-medium select-none cursor-pointer">
+                        Remember key on this device
+                    </label>
+                </div>
+            </div>
+
+            <hr class="border-slate-100">
+
+            <!-- Symbol Input & Fetch Actions Row -->
+            <div class="flex flex-col md:flex-row gap-4 items-end justify-between">
+                
+                <!-- Symbol Field & Chips -->
+                <div class="w-full md:w-1/2 space-y-2">
+                    <label class="block text-xs font-semibold text-slate-600">STOCK SYMBOL</label>
+                    <input type="text" id="symbolInput" value="IBM" placeholder="e.g. IBM, TCS.BSE" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg uppercase focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-700">
+                    
+                    <!-- Quick Select Chips (Does NOT call API) -->
+                    <div class="flex items-center gap-2 pt-1 flex-wrap">
+                        <span class="text-xs text-slate-400 font-medium">Quick Fill:</span>
+                        <button type="button" class="chip-btn chip bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs px-2.5 py-1 rounded-md font-medium border border-slate-200" data-symbol="IBM">IBM</button>
+                        <button type="button" class="chip-btn chip bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs px-2.5 py-1 rounded-md font-medium border border-slate-200" data-symbol="RELIANCE.BSE">RELIANCE.BSE</button>
+                        <button type="button" class="chip-btn chip bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs px-2.5 py-1 rounded-md font-medium border border-slate-200" data-symbol="TCS.BSE">TCS.BSE</button>
+                        <button type="button" class="chip-btn chip bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs px-2.5 py-1 rounded-md font-medium border border-slate-200" data-symbol="INFY.BSE">INFY.BSE</button>
+                    </div>
+                </div>
+
+                <!-- API Buttons -->
+                <div class="flex gap-2 w-full md:w-auto">
+                    <button id="loadBtn" class="flex-1 md:flex-none px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow transition-colors">
+                        Load Data
+                    </button>
+                    <button id="refreshBtn" class="flex-1 md:flex-none px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg shadow transition-colors">
+                        Refresh from API
+                    </button>
+                </div>
+            </div>
+
+            <!-- Error Banner -->
+            <div id="errorAlert" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs font-medium"></div>
+        </section>
+
+        <!-- Date Filters Section -->
+        <section class="bg-white p-4 rounded-xl card-shadow border border-slate-200 flex flex-col lg:flex-row gap-4 items-center justify-between">
+            <!-- Custom Date Inputs -->
+            <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                <div class="flex items-center gap-1.5">
+                    <label class="text-xs font-semibold text-slate-500">From:</label>
+                    <input type="date" id="fromDateInput" class="text-xs border border-slate-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <label class="text-xs font-semibold text-slate-500">To:</label>
+                    <input type="date" id="toDateInput" class="text-xs border border-slate-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <!-- Quick Preset Filter Buttons -->
+            <div class="flex items-center gap-1.5 flex-wrap w-full lg:w-auto">
+                <button type="button" class="range-btn text-xs px-3 py-1.5 rounded-md font-medium border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100" data-range="3M">3M</button>
+                <button type="button" class="range-btn text-xs px-3 py-1.5 rounded-md font-medium border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100" data-range="6M">6M</button>
+                <button type="button" class="range-btn text-xs px-3 py-1.5 rounded-md font-medium border border-slate-200 bg-blue-600 text-white font-semibold" data-range="1Y">1Y</button>
+                <button type="button" class="range-btn text-xs px-3 py-1.5 rounded-md font-medium border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100" data-range="3Y">3Y</button>
+                <button type="button" class="range-btn text-xs px-3 py-1.5 rounded-md font-medium border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100" data-range="5Y">5Y</button>
+                <button type="button" class="range-btn text-xs px-3 py-1.5 rounded-md font-medium border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100" data-range="YTD">YTD</button>
+                <button type="button" class="range-btn text-xs px-3 py-1.5 rounded-md font-medium border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100" data-range="MAX">Max</button>
+            </div>
+        </section>
+
+        <!-- KPI Cards Grid -->
+        <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white p-4 rounded-xl card-shadow border border-slate-200">
+                <p class="text-xs font-semibold text-slate-400 uppercase">Latest Adj Close</p>
+                <p id="kpiLatestPrice" class="text-xl font-bold text-slate-800 mt-1">-</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl card-shadow border border-slate-200">
+                <p class="text-xs font-semibold text-slate-400 uppercase">Period Return</p>
+                <p id="kpiReturn" class="text-xl font-bold text-slate-800 mt-1">-</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl card-shadow border border-slate-200">
+                <p class="text-xs font-semibold text-slate-400 uppercase">High / Low</p>
+                <p id="kpiHighLow" class="text-base font-bold text-slate-800 mt-1.5">-</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl card-shadow border border-slate-200">
+                <p class="text-xs font-semibold text-slate-400 uppercase">Avg Weekly Vol</p>
+                <p id="kpiAvgVolume" class="text-xl font-bold text-slate-800 mt-1">-</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl card-shadow border border-slate-200">
+                <p class="text-xs font-semibold text-slate-400 uppercase">Total Dividends</p>
+                <p id="kpiDividends" class="text-xl font-bold text-slate-800 mt-1">-</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl card-shadow border border-slate-200">
+                <p class="text-xs font-semibold text-slate-400 uppercase">Weekly Volatility</p>
+                <p id="kpiVolatility" class="text-xl font-bold text-slate-800 mt-1">-</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl card-shadow border border-slate-200">
+                <p class="text-xs font-semibold text-slate-400 uppercase">Max Drawdown</p>
+                <p id="kpiDrawdown" class="text-xl font-bold text-slate-800 mt-1">-</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl card-shadow border border-slate-200">
+                <p class="text-xs font-semibold text-slate-400 uppercase">Weeks Count</p>
+                <p id="kpiWeeks" class="text-xl font-bold text-slate-800 mt-1">-</p>
+            </div>
+        </section>
+
+        <!-- Chart Visualization Grid -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Chart 1: Price & Moving Average -->
+            <div class="bg-white p-4 rounded-xl card-shadow border border-slate-200 lg:col-span-2">
+                <h3 class="text-xs font-bold text-slate-600 uppercase mb-3">1. Price History & 10-Week Moving Average</h3>
+                <div class="relative h-72">
+                    <canvas id="chartPrice"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 2: Weekly Volume -->
+            <div class="bg-white p-4 rounded-xl card-shadow border border-slate-200">
+                <h3 class="text-xs font-bold text-slate-600 uppercase mb-3">2. Weekly Trading Volume</h3>
+                <div class="relative h-60">
+                    <canvas id="chartVolume"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 3: Weekly Returns -->
+            <div class="bg-white p-4 rounded-xl card-shadow border border-slate-200">
+                <h3 class="text-xs font-bold text-slate-600 uppercase mb-3">3. Weekly Return (%)</h3>
+                <div class="relative h-60">
+                    <canvas id="chartReturns"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 4: Price Range -->
+            <div class="bg-white p-4 rounded-xl card-shadow border border-slate-200">
+                <h3 class="text-xs font-bold text-slate-600 uppercase mb-3">4. Weekly Price Range (High - Low)</h3>
+                <div class="relative h-60">
+                    <canvas id="chartRange"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 5: Dividend History -->
+            <div class="bg-white p-4 rounded-xl card-shadow border border-slate-200">
+                <h3 class="text-xs font-bold text-slate-600 uppercase mb-3">5. Dividend Distributions</h3>
+                <div class="relative h-60">
+                    <canvas id="chartDividends"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Data Table & CSV Download Section -->
+        <section class="bg-white rounded-xl card-shadow border border-slate-200 p-6 space-y-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-700 uppercase">Weekly History (Recent 12 Weeks)</h3>
+                    <p class="text-xs text-slate-400">Showing up to 12 weeks from filtered period</p>
+                </div>
+                <button id="downloadCsvBtn" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg shadow flex items-center gap-2 transition-colors">
+                    📥 Download CSV (All Filtered)
+                </button>
+            </div>
+
+            <!-- Table Container -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs text-slate-600">
+                    <thead class="bg-slate-50 uppercase text-slate-500 font-bold border-b border-slate-200">
+                        <tr>
+                            <th class="py-2.5 px-3">Date</th>
+                            <th class="py-2.5 px-3">Open</th>
+                            <th class="py-2.5 px-3">High</th>
+                            <th class="py-2.5 px-3">Low</th>
+                            <th class="py-2.5 px-3">Close</th>
+                            <th class="py-2.5 px-3">Adj Close</th>
+                            <th class="py-2.5 px-3">Volume</th>
+                            <th class="py-2.5 px-3">Dividend</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stockTableBody" class="divide-y divide-slate-100 font-medium">
+                        <tr>
+                            <td colspan="8" class="text-center py-6 text-slate-400">No stock data loaded yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Footer Section -->
+    <footer class="mt-8 text-center text-xs text-slate-400 py-4 border-t border-slate-200">
+        For learning only. Not investment advice.
+    </footer>
+
+    <script>
+        // Store full dataset and currently initialized chart instances
+        let rawWeeklyData = [];
+        let filteredWeeklyData = [];
+        let chartInstances = {};
+
+        // DOM Elements
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const rememberKeyCheckbox = document.getElementById('rememberKeyCheckbox');
+        const toggleKeyVisibilityBtn = document.getElementById('toggleKeyVisibility');
+        const symbolInput = document.getElementById('symbolInput');
+        const loadBtn = document.getElementById('loadBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const errorAlert = document.getElementById('errorAlert');
+        const apiCallCountSpan = document.getElementById('apiCallCount');
+        const dataSourceBadge = document.getElementById('dataSourceBadge');
+        const fromDateInput = document.getElementById('fromDateInput');
+        const toDateInput = document.getElementById('toDateInput');
+        const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+
+        // On Page Load Initialization
+        window.addEventListener('DOMContentLoaded', () => {
+            initApiKey();
+            updateCallCounterDisplay();
+            setupEventListeners();
+        });
+
+        // Initialize key from localStorage if saved
+        function initApiKey() {
+            const savedKey = localStorage.getItem('alphavantage_api_key');
+            if (savedKey) {
+                apiKeyInput.value = savedKey;
+                rememberKeyCheckbox.checked = true;
+            }
+        }
+
+        // Setup UI event listeners
+        function setupEventListeners() {
+            // Password Show/Hide toggle
+            toggleKeyVisibilityBtn.addEventListener('click', () => {
+                if (apiKeyInput.type === 'password') {
+                    apiKeyInput.type = 'text';
+                    toggleKeyVisibilityBtn.textContent = 'Hide';
+                } else {
+                    apiKeyInput.type = 'password';
+                    toggleKeyVisibilityBtn.textContent = 'Show';
+                }
+            });
+
+            // Remember key checkbox handler
+            rememberKeyCheckbox.addEventListener('change', () => {
+                if (rememberKeyCheckbox.checked && apiKeyInput.value.trim()) {
+                    localStorage.setItem('alphavantage_api_key', apiKeyInput.value.trim());
+                } else {
+                    localStorage.removeItem('alphavantage_api_key');
+                }
+            });
+
+            // Save key on change if remembered
+            apiKeyInput.addEventListener('input', () => {
+                if (rememberKeyCheckbox.checked) {
+                    localStorage.setItem('alphavantage_api_key', apiKeyInput.value.trim());
+                }
+            });
+
+            // Symbol chip buttons (Only fills input field, NEVER triggers API calls)
+            document.querySelectorAll('.chip-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    symbolInput.value = e.target.getAttribute('data-symbol');
+                });
+            });
+
+            // Trigger Buttons
+            loadBtn.addEventListener('click', () => fetchStockData(false));
+            refreshBtn.addEventListener('click', () => fetchStockData(true));
+
+            // Date Range Presets
+            document.querySelectorAll('.range-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.range-btn').forEach(b => {
+                        b.classList.remove('bg-blue-600', 'text-white', 'font-semibold');
+                        b.classList.add('bg-slate-50', 'text-slate-600');
+                    });
+                    e.target.classList.remove('bg-slate-50', 'text-slate-600');
+                    e.target.classList.add('bg-blue-600', 'text-white', 'font-semibold');
+
+                    applyRangePreset(e.target.getAttribute('data-range'));
+                });
+            });
+
+            // Custom Date Input Changes
+            fromDateInput.addEventListener('change', applyDateFilter);
+            toDateInput.addEventListener('change', applyDateFilter);
+
+            // CSV Download
+            downloadCsvBtn.addEventListener('click', downloadCSV);
+        }
+
+        // Format today's date string ISO format (YYYY-MM-DD)
+        function getTodayISO() {
+            return new Date().toISOString().split('T')[0];
+        }
+
+        // Update API Counter in UI and reset daily
+        function updateCallCounterDisplay() {
+            const today = getTodayISO();
+            const storedDate = localStorage.getItem('api_counter_date');
+            if (storedDate !== today) {
+                localStorage.setItem('api_counter_date', today);
+                localStorage.setItem('api_counter_count', '0');
+            }
+            const currentCount = localStorage.getItem('api_counter_count') || '0';
+            apiCallCountSpan.textContent = currentCount;
+        }
+
+        // Increment API call counter
+        function incrementCallCounter() {
+            const currentCount = parseInt(localStorage.getItem('api_counter_count') || '0', 10);
+            const newCount = currentCount + 1;
+            localStorage.setItem('api_counter_count', newCount.toString());
+            apiCallCountSpan.textContent = newCount.toString();
+        }
+
+        // Display user error banner
+        function showError(msg) {
+            errorAlert.textContent = msg;
+            errorAlert.classList.remove('hidden');
+        }
+
+        // Clear error banner
+        function clearError() {
+            errorAlert.textContent = '';
+            errorAlert.classList.add('hidden');
+        }
+
+        // Fetch or load stock data handler
+        async function fetchStockData(forceRefresh = false) {
+            clearError();
+            const key = apiKeyInput.value.trim();
+            const symbol = symbolInput.value.trim().toUpperCase();
+
+            // Error check: Empty Key
+            if (!key) {
+                showError('Please enter your Alpha Vantage API key.');
+                return;
+            }
+
+            // Error check: Empty Symbol
+            if (!symbol) {
+                showError('Please enter a valid stock symbol.');
+                return;
+            }
+
+            // Error check: Demo Key restriction
+            if (key.toLowerCase() === 'demo' && symbol !== 'IBM') {
+                showError('The "demo" API key only works for the IBM symbol. Please enter your key for other stocks.');
+                return;
+            }
+
+            const today = getTodayISO();
+            const cacheKey = `stock_cache_${symbol}_${today}`;
+
+            // Check Cache if forceRefresh is false
+            if (!forceRefresh) {
+                const cachedData = localStorage.getItem(cacheKey);
+                if (cachedData) {
+                    try {
+                        const parsed = JSON.parse(cachedData);
+                        processAndDisplayData(parsed, 'Cache');
+                        return;
+                    } catch (e) {
+                        localStorage.removeItem(cacheKey);
+                    }
+                }
+            }
+
+            // Make Live API Call
+            try {
+                const url = `https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY_ADJUSTED&symbol=${encodeURIComponent(symbol)}&apikey=${encodeURIComponent(key)}`;
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error('Network error. Failed to reach Alpha Vantage.');
+                }
+
+                const json = await response.json();
+
+                // Error check: Rate limit or Note / Information messages
+                if (json['Note'] || json['Information']) {
+                    const msg = json['Note'] || json['Information'];
+                    showError('Daily/Minute limit reached: ' + msg);
+                    return;
+                }
+
+                // Error check: Invalid symbol
+                if (json['Error Message'] || !json['Weekly Adjusted Time Series']) {
+                    showError('Could not find that symbol. Please check the stock ticker and try again.');
+                    return;
+                }
+
+                // Success: Increment counter & cache response
+                incrementCallCounter();
+                localStorage.setItem(cacheKey, JSON.stringify(json));
+
+                processAndDisplayData(json, 'Live API Call');
+
+            } catch (err) {
+                showError('Failed to fetch data: ' + err.message);
+            }
+        }
+
+        // Convert API Response JSON to clean sorted data array
+        function processAndDisplayData(json, source) {
+            const series = json['Weekly Adjusted Time Series'];
+            if (!series) {
+                showError('Data format error.');
+                return;
+            }
+
+            // Show cache vs API indicator
+            dataSourceBadge.classList.remove('hidden', 'bg-emerald-50', 'text-emerald-700', 'border-emerald-200', 'bg-blue-50', 'text-blue-700', 'border-blue-200');
+            if (source === 'Cache') {
+                dataSourceBadge.textContent = 'Data loaded from Local Cache';
+                dataSourceBadge.classList.add('bg-emerald-50', 'text-emerald-700', 'border-emerald-200');
+            } else {
+                dataSourceBadge.textContent = 'Data loaded from Live API';
+                dataSourceBadge.classList.add('bg-blue-50', 'text-blue-700', 'border-blue-200');
+            }
+
+            // Parse text to numbers & sort oldest to newest
+            rawWeeklyData = Object.keys(series).map(dateStr => {
+                const item = series[dateStr];
+                return {
+                    date: dateStr,
+                    open: parseFloat(item['1. open']),
+                    high: parseFloat(item['2. high']),
+                    low: parseFloat(item['3. low']),
+                    close: parseFloat(item['4. close']),
+                    adjClose: parseFloat(item['5. adjusted close']),
+                    volume: parseFloat(item['6. volume']),
+                    dividend: parseFloat(item['7. dividend amount'])
+                };
+            }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            // Set default date picker ranges
+            if (rawWeeklyData.length > 0) {
+                const maxDate = rawWeeklyData[rawWeeklyData.length - 1].date;
+                toDateInput.value = maxDate;
+                applyRangePreset('1Y'); // Default 1Y preset
+            }
+        }
+
+        // Apply presets (3M, 6M, 1Y, 3Y, 5Y, YTD, MAX)
+        function applyRangePreset(range) {
+            if (rawWeeklyData.length === 0) return;
+
+            const lastDate = new Date(rawWeeklyData[rawWeeklyData.length - 1].date);
+            let startDate = new Date(lastDate);
+
+            if (range === '3M') startDate.setMonth(startDate.getMonth() - 3);
+            else if (range === '6M') startDate.setMonth(startDate.getMonth() - 6);
+            else if (range === '1Y') startDate.setFullYear(startDate.getFullYear() - 1);
+            else if (range === '3Y') startDate.setFullYear(startDate.getFullYear() - 3);
+            else if (range === '5Y') startDate.setFullYear(startDate.getFullYear() - 5);
+            else if (range === 'YTD') startDate = new Date(lastDate.getFullYear(), 0, 1);
+            else if (range === 'MAX') startDate = new Date(rawWeeklyData[0].date);
+
+            fromDateInput.value = startDate.toISOString().split('T')[0];
+            toDateInput.value = lastDate.toISOString().split('T')[0];
+
+            applyDateFilter();
+        }
+
+        // Filter global raw data based on selected custom dates
+        function applyDateFilter() {
+            if (rawWeeklyData.length === 0) return;
+
+            const fromStr = fromDateInput.value;
+            const toStr = toDateInput.value;
+
+            const from = fromStr ? new Date(fromStr) : new Date('1900-01-01');
+            const to = toStr ? new Date(toStr) : new Date('2100-01-01');
+
+            filteredWeeklyData = rawWeeklyData.filter(d => {
+                const cur = new Date(d.date);
+                return cur >= from && cur <= to;
+            });
+
+            // Recalculate metrics, render table and update charts
+            updateKPICards();
+            renderTable();
+            renderCharts();
+        }
+
+        // Calculate and render KPI Cards
+        function updateKPICards() {
+            if (filteredWeeklyData.length === 0) {
+                ['kpiLatestPrice', 'kpiReturn', 'kpiHighLow', 'kpiAvgVolume', 'kpiDividends', 'kpiVolatility', 'kpiDrawdown', 'kpiWeeks'].forEach(id => {
+                    document.getElementById(id).textContent = '-';
+                });
+                return;
+            }
+
+            const first = filteredWeeklyData[0];
+            const last = filteredWeeklyData[filteredWeeklyData.length - 1];
+
+            // 1. Latest Adjusted Close
+            document.getElementById('kpiLatestPrice').textContent = `$${last.adjClose.toFixed(2)}`;
+
+            // 2. Period Return %
+            const returnPct = ((last.adjClose - first.adjClose) / first.adjClose) * 100;
+            const returnElem = document.getElementById('kpiReturn');
+            returnElem.textContent = `${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(2)}%`;
+            returnElem.className = `text-xl font-bold mt-1 ${returnPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`;
+
+            // 3. Highest High & Lowest Low
+            const highest = Math.max(...filteredWeeklyData.map(d => d.high));
+            const lowest = Math.min(...filteredWeeklyData.map(d => d.low));
+            document.getElementById('kpiHighLow').textContent = `$${highest.toFixed(2)} / $${lowest.toFixed(2)}`;
+
+            // 4. Avg Weekly Volume
+            const totalVol = filteredWeeklyData.reduce((acc, d) => acc + d.volume, 0);
+            const avgVol = totalVol / filteredWeeklyData.length;
+            document.getElementById('kpiAvgVolume').textContent = formatLargeNumber(avgVol);
+
+            // 5. Total Dividends
+            const totalDiv = filteredWeeklyData.reduce((acc, d) => acc + d.dividend, 0);
+            document.getElementById('kpiDividends').textContent = `$${totalDiv.toFixed(2)}`;
+
+            // Calculate weekly return percentages for Std Dev and Max Drawdown
+            const weeklyReturns = [];
+            for (let i = 1; i < filteredWeeklyData.length; i++) {
+                const ret = (filteredWeeklyData[i].adjClose - filteredWeeklyData[i - 1].adjClose) / filteredWeeklyData[i - 1].adjClose;
+                weeklyReturns.push(ret);
+            }
+
+            // 6. Weekly Volatility (Standard Deviation of weekly returns)
+            let stdDev = 0;
+            if (weeklyReturns.length > 0) {
+                const mean = weeklyReturns.reduce((a, b) => a + b, 0) / weeklyReturns.length;
+                const variance = weeklyReturns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / weeklyReturns.length;
+                stdDev = Math.sqrt(variance) * 100;
+            }
+            document.getElementById('kpiVolatility').textContent = `${stdDev.toFixed(2)}%`;
+
+            // 7. Max Drawdown %
+            let maxDrawdown = 0;
+            let peak = -Infinity;
+            filteredWeeklyData.forEach(d => {
+                if (d.adjClose > peak) peak = d.adjClose;
+                const dd = ((peak - d.adjClose) / peak) * 100;
+                if (dd > maxDrawdown) maxDrawdown = dd;
+            });
+            document.getElementById('kpiDrawdown').textContent = `-${maxDrawdown.toFixed(2)}%`;
+
+            // 8. Number of Weeks
+            document.getElementById('kpiWeeks').textContent = filteredWeeklyData.length;
+        }
+
+        // Helper to format volume nicely
+        function formatLargeNumber(num) {
+            if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+            if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+            if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+            return num.toFixed(0);
+        }
+
+        // Render or Update Chart.js Charts
+        function renderCharts() {
+            if (typeof Chart === 'undefined') {
+                showError('Chart.js failed to load. Please check your internet connection.');
+                return;
+            }
+
+            const dates = filteredWeeklyData.map(d => d.date);
+
+            // Calculate 10-Week Moving Average
+            const ma10 = filteredWeeklyData.map((d, idx, arr) => {
+                if (idx < 9) return null;
+                const slice = arr.slice(idx - 9, idx + 1);
+                const sum = slice.reduce((acc, curr) => acc + curr.adjClose, 0);
+                return sum / 10;
+            });
+
+            // 1. Price History Chart
+            createOrUpdateChart('chartPrice', {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [
+                        { label: 'Adj Close', data: filteredWeeklyData.map(d => d.adjClose), borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.05)', fill: true, tension: 0.1, pointRadius: 0 },
+                        { label: 'Close', data: filteredWeeklyData.map(d => d.close), borderColor: '#94a3b8', borderDash: [4, 4], pointRadius: 0 },
+                        { label: '10-Wk MA', data: ma10, borderColor: '#f59e0b', pointRadius: 0, borderWidth: 2 }
+                    ]
+                }
+            });
+
+            // 2. Volume Chart
+            createOrUpdateChart('chartVolume', {
+                type: 'bar',
+                data: {
+                    labels: dates,
+                    datasets: [{ label: 'Volume', data: filteredWeeklyData.map(d => d.volume), backgroundColor: '#64748b' }]
+                }
+            });
+
+            // 3. Weekly Returns % Chart
+            const returnsData = filteredWeeklyData.map((d, i, arr) => {
+                if (i === 0) return 0;
+                return ((d.adjClose - arr[i - 1].adjClose) / arr[i - 1].adjClose) * 100;
+            });
+            const barColors = returnsData.map(val => val >= 0 ? '#10b981' : '#ef4444');
+
+            createOrUpdateChart('chartReturns', {
+                type: 'bar',
+                data: {
+                    labels: dates,
+                    datasets: [{ label: 'Weekly Return (%)', data: returnsData, backgroundColor: barColors }]
+                }
+            });
+
+            // 4. High-Low Price Range
+            const ranges = filteredWeeklyData.map(d => d.high - d.low);
+            createOrUpdateChart('chartRange', {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{ label: 'High-Low Spread ($)', data: ranges, borderColor: '#8b5cf6', backgroundColor: 'rgba(139, 92, 246, 0.1)', fill: true, pointRadius: 0 }]
+                }
+            });
+
+            // 5. Dividend Chart
+            createOrUpdateChart('chartDividends', {
+                type: 'bar',
+                data: {
+                    labels: dates,
+                    datasets: [{ label: 'Dividend ($)', data: filteredWeeklyData.map(d => d.dividend), backgroundColor: '#059669' }]
+                }
+            });
+        }
+
+        // Helper to destroy and rebuild chart instances safely
+        function createOrUpdateChart(canvasId, config) {
+            if (chartInstances[canvasId]) {
+                chartInstances[canvasId].destroy();
+            }
+
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            chartInstances[canvasId] = new Chart(ctx, {
+                ...config,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: true, labels: { boxWidth: 12, font: { size: 10 } } } },
+                    scales: {
+                        x: { ticks: { maxTicksLimit: 8, font: { size: 10 } } },
+                        y: { ticks: { font: { size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        // Render Table (Showing recent 12 weeks)
+        function renderTable() {
+            const tableBody = document.getElementById('stockTableBody');
+            tableBody.innerHTML = '';
+
+            if (filteredWeeklyData.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-slate-400">No data for selected range.</td></tr>';
+                return;
+            }
+
+            // Slice last 12 weeks and reverse so newest is on top
+            const recent12 = filteredWeeklyData.slice(-12).reverse();
+
+            recent12.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="py-2 px-3 font-semibold text-slate-700">${row.date}</td>
+                    <td class="py-2 px-3">$${row.open.toFixed(2)}</td>
+                    <td class="py-2 px-3">$${row.high.toFixed(2)}</td>
+                    <td class="py-2 px-3">$${row.low.toFixed(2)}</td>
+                    <td class="py-2 px-3">$${row.close.toFixed(2)}</td>
+                    <td class="py-2 px-3 font-semibold text-blue-600">$${row.adjClose.toFixed(2)}</td>
+                    <td class="py-2 px-3">${row.volume.toLocaleString()}</td>
+                    <td class="py-2 px-3">${row.dividend > 0 ? '$' + row.dividend.toFixed(2) : '-'}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        // Download Filtered Dataset as CSV
+        function downloadCSV() {
+            if (filteredWeeklyData.length === 0) {
+                showError('No data available to download.');
+                return;
+            }
+
+            const headers = ['Date', 'Open', 'High', 'Low', 'Close', 'Adjusted Close', 'Volume', 'Dividend Amount'];
+            const rows = filteredWeeklyData.map(d => [
+                d.date,
+                d.open,
+                d.high,
+                d.low,
+                d.close,
+                d.adjClose,
+                d.volume,
+                d.dividend
+            ]);
+
+            let csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            const symbol = symbolInput.value.trim().toUpperCase() || 'STOCK';
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', `${symbol}_weekly_data.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
